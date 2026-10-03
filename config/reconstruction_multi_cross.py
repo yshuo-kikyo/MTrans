@@ -13,7 +13,7 @@ _C.world_size = 1
 
 # dataset config
 _C.DATASET = CN()
-_C.DATASET.ROOT = '/home/jc3/Data'  # the root of dataset
+_C.DATASET.ROOT = '/data/ssd1/yanshuo/datasets/fastMRI'  # the root of dataset
 _C.DATASET.CHALLENGE = 'singlecoil'  # the task of ours, singlecoil or multicoil
 _C.DATASET.MODE = ''  # train or test
 
@@ -44,20 +44,21 @@ _C.MULTI.MODE = 'base'       # 'concat' means concat image direct, 'base' means 
 _C.SOLVER = CN()
 _C.SOLVER.DEVICE = 'cuda'
 _C.SOLVER.DEVICE_IDS = [0, 1]  # if [] use cpu, else gpu
-_C.SOLVER.LR = 1e-5
+_C.SOLVER.LR = 1e-4
 _C.SOLVER.WEIGHT_DECAY = 1e-4
-_C.SOLVER.LR_DROP = [40, 80]
+_C.SOLVER.LR_DROP = [40]
 _C.SOLVER.BATCH_SIZE = 4
-_C.SOLVER.NUM_WORKERS = 16
+_C.SOLVER.ACCUMULATION_STEPS = 2
+_C.SOLVER.NUM_WORKERS = 8
 _C.SOLVER.PRINT_FREQ = 10
 
 # the others config
 _C.RESUME = ''  # model resume path
-_C.OUTPUTDIR = './weights_reconstruction_multi_cross_SGD'  # the model output dir
+_C.OUTPUTDIR = './weights_reconstruction_multi_cross_paper_random4x'  # the model output dir
 
 #the train configs
 _C.TRAIN = CN()
-_C.TRAIN.EPOCHS = 100  # the train epochs
+_C.TRAIN.EPOCHS = 50  # the train epochs
 
 _C.WORK_TYPE = 'reconstruction'
 _C.NOISE_RATE = 0.09

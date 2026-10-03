@@ -22,7 +22,11 @@ def train_one_epoch(args, model: torch.nn.Module, criterion: torch.nn.Module,
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
 
-    for data in metric_logger.log_every(data_loader, print_freq, header):
+    accumulation_steps = args.SOLVER.ACCUMULATION_STEPS
+    optimizer.zero_grad()
+
+    for step, data in enumerate(
+            metric_logger.log_every(data_loader, print_freq, header)):
 
         pd, pdfs, _ = data
         target = pdfs[1]
@@ -45,9 +49,12 @@ def train_one_epoch(args, model: torch.nn.Module, criterion: torch.nn.Module,
             outputs = model(pdfs_img)
             loss = criterion(outputs, target)
 
-        optimizer.zero_grad()
-        loss['loss'].backward()
-        optimizer.step()
+        scaled_loss = loss['loss'] / accumulation_steps
+        scaled_loss.backward()
+
+        if (step + 1) % accumulation_steps == 0:
+            optimizer.step()
+            optimizer.zero_grad()
 
         metric_logger.update(loss=loss['loss'])
         metric_logger.update(l1_loss=loss['l1_loss'])

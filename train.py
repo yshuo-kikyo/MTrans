@@ -38,8 +38,21 @@ def main(args, work):
     model.to(device)
     criterion.to(device)
 
+    #if args.distributed:
+    #    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
+
     if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
+        model = torch.nn.parallel.DistributedDataParallel(
+            model,
+            device_ids=[args.gpu],
+            find_unused_parameters=True
+        )
+    elif len(args.SOLVER.DEVICE_IDS) > 1:
+        model = torch.nn.DataParallel(
+            model,
+            device_ids=args.SOLVER.DEVICE_IDS
+        )
+
 
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params: %.2f M' % (n_parameters / 1024 / 1024))
@@ -71,75 +84,103 @@ def main(args, work):
                                 sampler=sampler_val, num_workers=args.SOLVER.NUM_WORKERS,
                                 pin_memory=True)
 
+    best_status = {'NMSE': 10000000, 'PSNR': 0, 'SSIM': 0}
+    best_epoch = -1
+
     if args.RESUME != '':
-        checkpoint = torch.load(args.RESUME)
-        checkpoint = checkpoint['model']
-        checkpoint = {key.replace("module.", ""): val for key, val in checkpoint.items()}
+        checkpoint = torch.load(
+            args.RESUME, map_location='cpu', weights_only=False
+        )
+        model_state = {
+            key.replace("module.", ""): val
+            for key, val in checkpoint['model'].items()
+        }
+
+        target_model = model.module if hasattr(model, "module") else model
+        target_model.load_state_dict(model_state, strict=False)
+
+        if 'optimizer' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer'])
+        if 'lr_scheduler' in checkpoint:
+            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+
+        start_epoch = checkpoint.get('epoch', -1) + 1
+        best_status = checkpoint.get('best_status', best_status)
+        best_epoch = checkpoint.get('best_epoch', checkpoint.get('epoch', -1))
+
         print('resume from %s' % args.RESUME)
-        model.load_state_dict(checkpoint, strict=False)
+        print('start epoch:', start_epoch)
+
+    if args.OUTPUTDIR:
+        Path(args.OUTPUTDIR).mkdir(parents=True, exist_ok=True)
 
 
     start_time = time.time()
 
-    best_status = {'NMSE': 10000000, 'PSNR': 0, 'SSIM': 0}
-
-    best_checkpoint = None
-
     for epoch in range(start_epoch, args.TRAIN.EPOCHS):
-        train_status = train_one_epoch(args,
-            model, criterion, dataloader_train, optimizer, epoch, args.SOLVER.PRINT_FREQ, device)
+        train_status = train_one_epoch(
+            args, model, criterion, dataloader_train, optimizer,
+            epoch, args.SOLVER.PRINT_FREQ, device
+        )
         lr_scheduler.step()
 
         if args.distributed:
-            eval_status = distributed_evaluate(args, model, criterion, dataloader_val, device, dataset_val_len)
+            eval_status = distributed_evaluate(
+                args, model, criterion, dataloader_val,
+                device, dataset_val_len
+            )
         else:
-            eval_status = evaluate(args, model, criterion, dataloader_val, device)
-
-        if eval_status['PSNR']>best_status['PSNR']:
+            
+            #eval_status = evaluate(
+            #    args, model, criterion, dataloader_val, device
+            #)
+            eval_status = evaluate(
+                args, model, criterion, dataloader_val,
+                device, args.OUTPUTDIR
+            )           
+            
+            
+        is_best = eval_status['PSNR'] > best_status['PSNR']
+        if is_best:
             best_status = eval_status
-            best_checkpoint = {
-                'model': model.module.state_dict(),
+            best_epoch = epoch
+
+        if args.OUTPUTDIR:
+            Path(args.OUTPUTDIR).mkdir(parents=True, exist_ok=True)
+
+            target_model = model.module if hasattr(model, "module") else model
+            checkpoint = {
+                'model': target_model.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'lr_scheduler': lr_scheduler.state_dict(),
                 'epoch': epoch,
+                'best_epoch': best_epoch,
+                'best_status': best_status,
                 'args': args,
             }
 
-        # save model
-        if args.OUTPUTDIR:
-            Path(args.OUTPUTDIR).mkdir(parents=True, exist_ok=True)
-            checkpoint_path = os.path.join(args.OUTPUTDIR, f'checkpoint{epoch:04}.pth')
+            last_path = os.path.join(
+                args.OUTPUTDIR, 'checkpoint_last.pth'
+            )
 
             if args.distributed:
-                save_on_master({
-                    'model': model.module.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                    'lr_scheduler': lr_scheduler.state_dict(),
-                    'epoch': epoch,
-                    'args': args,
-                }, checkpoint_path)
+                save_on_master(checkpoint, last_path)
             else:
-                torch.save({
-                    'model': model.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                    'lr_scheduler': lr_scheduler.state_dict(),
-                    'epoch': epoch,
-                    'args': args,
-                }, checkpoint_path)
+                torch.save(checkpoint, last_path)
 
-    print('The bset epoch is ', best_checkpoint['epoch'])
+            if is_best:
+                best_path = os.path.join(args.OUTPUTDIR, 'best.pth')
+                if args.distributed:
+                    save_on_master(checkpoint, best_path)
+                else:
+                    torch.save(checkpoint, best_path)
+
+    print('The best epoch is ', best_epoch)
     print("Results ----------")
     print("NMSE: {:.4}".format(best_status['NMSE']))
     print("PSNR: {:.4}".format(best_status['PSNR']))
     print("SSIM: {:.4}".format(best_status['SSIM']))
     print("------------------")
-    if args.OUTPUTDIR:
-        checkpoint_path = os.path.join(args.OUTPUTDIR, 'best.pth')
-
-        if args.distributed:
-            save_on_master(best_checkpoint, checkpoint_path)
-        else:
-            torch.save(best_checkpoint, checkpoint_path)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

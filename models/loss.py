@@ -14,7 +14,7 @@ class LossWrapper(nn.Module):
 
         if self.use_cl1_loss:
             cl1_loss = self.cl1_loss(complement, complement_target)
-            loss = l1_loss + cl1_loss
+            loss = 0.9 * l1_loss + 0.1 * cl1_loss
             return {'l1_loss' : l1_loss, 'cl1_loss': cl1_loss, 'loss': loss}
         else:
             loss = l1_loss
