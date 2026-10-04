@@ -35,6 +35,10 @@ class MultiHeadCrossAttention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
+        # Opt-in, non-persistent analysis cache; disabled during normal training.
+        self.capture_attention = False
+        self.last_attn = None
+
 
     def forward(self, x, complement):
 
@@ -54,6 +58,8 @@ class MultiHeadCrossAttention(nn.Module):
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
+        if self.capture_attention:
+            self.last_attn = attn.detach()
         attn = self.attn_drop(attn)
 
         x = (attn @ v).transpose(1, 2).reshape(B_x, N_x, C_x)
