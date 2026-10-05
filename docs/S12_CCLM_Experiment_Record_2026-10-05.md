@@ -1,7 +1,7 @@
-# S10服务器：MTrans-CCLM 实验进展、设置、代码与正式设计记录
+# S12服务器：MTrans-CCLM 实验进展、设置、代码与正式设计记录
 
 > 记录日期：2026-10-05  
-> 服务器：S10  
+> 服务器：S12  
 > 项目：Multi-modal MRI Reconstruction / CCLM  
 > 当前阶段：Proxy incremental-assessment proof 已获强正信号；Formal CCLM 已完成 B1 与 M1 的代码与验证，等待正式训练。
 
@@ -15,7 +15,7 @@
 
 进一步计划加入 reconstruction-state-aware reassessment，使 `M_c^(1), M_c^(2), M_c^(3)` 随重建状态动态变化。论文动机核心问题：**“Is it relevant?” ≠ “Is it still useful?”**
 
-## 2. S10 环境、代码与 Git
+## 2. S12 环境、代码与 Git
 
 Python 环境：
 
@@ -59,7 +59,7 @@ Undersampling：Random 4×，`CENTER_FRACTIONS=[0.08]`，`ACCELERATIONS=[4]`。
 
 Loss：`0.9*L_target + 0.1*L_aux`。Best checkpoint criterion 固定为 validation PSNR。
 
-## 4. B0 — S10 Original MTrans
+## 4. B0 — S12 Original MTrans
 
 代码：`/data/ssd1/yanshuo/code2026/MTrans_Paper_Repro`
 
@@ -77,7 +77,7 @@ Target：40×40=1600 tokens，token dim=1024。Auxiliary：20×20=400 tokens，t
 
 即 `T: [B,1600,1024]`，`A: [B,400,4096]`。
 
-## 6. P1 — S10 Proxy Incremental Assessment Proof
+## 6. P1 — S12 Proxy Incremental Assessment Proof
 
 **定位：P1 是 proxy proof，不进入正式 M0/M1/M2/M3 消融序列。** 目的只是验证已有 cross-modal interaction 的 update 是否仍需根据 current target state 做 incremental assessment。
 
@@ -85,7 +85,7 @@ Target：40×40=1600 tokens，token dim=1024。Auxiliary：20×20=400 tokens，t
 
 核心文件：`models/cmmt_reconstruction_multi_cross_assess.py`、`config/reconstruction_multi_cross_assess.py`。Experiment=`reconstruction_multi_cross_assess`；output=`./weights_reconstruction_multi_cross_assess_random4x`；log=`train_cclm_assess_random4x_20261004.log`；tmux=`cclm_assess`。
 
-S10 启动：
+S12 启动：
 
 `CUDA_VISIBLE_DEVICES=0,2 python -u train.py --experiment reconstruction_multi_cross_assess 2>&1 | tee train_cclm_assess_random4x_20261004.log`
 
@@ -101,7 +101,7 @@ Proxy formulation：保留原 MTrans early fusion 与 CrossTransformer。保存 
 
 当前 preliminary conclusion：incremental assessment 对 reconstruction 有强正信号，但 P1 不等价于正式 CCLM。
 
-## 7. B1 — S10 No Early Fusion Control
+## 7. B1 — S12 No Early Fusion Control
 
 目的：单独控制原 MTrans 的 `x = x + complement`，排除 unconditional early fusion 对后续 Match/Assess 解释的干扰。
 
@@ -113,7 +113,7 @@ Model=`models/cmmt_reconstruction_multi_cross_noearly.py`；Config=`config/recon
 
 已通过 syntax、factory registration、full model dummy forward：`B1 NO-EARLY-FUSION SMOKE TEST PASSED`。当前尚未正式训练。
 
-## 8. M1 — S10 Directional Criss-Cross Match
+## 8. M1 — S12 Directional Criss-Cross Match
 
 M1 是 Formal CCLM 的正式 Match-only baseline。它回答“Where is the corresponding auxiliary evidence?”，不回答“Is it still incrementally useful?”；后者留给 M2 Assess。
 
@@ -196,7 +196,7 @@ target_state_s3 / matched_aux_s3 / mc_s3 / compensated_s3
 
 新服务器申请中。迁移时不要“手工搭一套差不多的环境”。应以 Git commit + 固定数据协议为准：clone/sync repo，checkout 对应 branch/commit，重建或复制与 `/data/ssd1/yanshuo/envs/rchnet` 一致的环境，确认 fastMRI 227/45 CSV、Random 4×、seed42、batch4、50 epochs、loss与checkpoint规则完全一致；先 smoke test，再正式训练。
 
-新服务器第一批优先并行：B1 `reconstruction_multi_cross_noearly` 与 M1 `reconstruction_directional_match`。P1 在 S10 继续跑满。
+新服务器第一批优先并行：B1 `reconstruction_multi_cross_noearly` 与 M1 `reconstruction_directional_match`。P1 在 S12 继续跑满。
 
 ## 14. 当前结果表（截至 2026-10-05）
 
@@ -223,7 +223,7 @@ B1 用于判断 unconditional early fusion 的作用；M1 用于判断 structure
 
 ## 16. 下一步执行顺序
 
-1. S10 P1 继续跑满50 epochs，记录最终 PSNR-best checkpoint。
+1. S12 P1 继续跑满50 epochs，记录最终 PSNR-best checkpoint。
 2. 新服务器可登录后迁移/同步 `cclm-formal @ 44b55f8`。
 3. 正式跑 B1 与 M1，保持完全相同 Random-4× protocol。
 4. 记录 B1/M1 参数、显存、速度、完整 validation trajectory。
@@ -234,4 +234,4 @@ B1 用于判断 unconditional early fusion 的作用；M1 用于判断 structure
 
 ---
 
-**本文件记录的是 S10 服务器截至 2026-10-05 的真实实验状态。后续更新时应保留历史结果并标注日期，不用新的中期结果覆盖旧记录。**
+**本文件记录的是 S12 服务器截至 2026-10-05 的真实实验状态。后续更新时应保留历史结果并标注日期，不用新的中期结果覆盖旧记录。**
