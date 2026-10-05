@@ -4,6 +4,7 @@ from .sr_multi_cross import _C as SRMC
 
 
 from .reconstruction_multi_cross import _C as RMC
+from .reconstruction_multi_cross_noearly import _C as RMCNE
 from .reconstruction_multi_early import _C as RME
 from .reconstruction_single import _C as RS
 from .unet_reconstruction_single import _C as URS
@@ -17,6 +18,7 @@ config_factory = {
 
 
     'reconstruction_multi_cross': RMC,
+    'reconstruction_multi_cross_noearly': RMCNE,
     'reconstruction_multi_early' : RME,
     'reconstruction_single': RS,
     'unet_reconstruction_single': URS,
