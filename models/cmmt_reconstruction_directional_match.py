@@ -94,7 +94,7 @@ class CrossCMMT(nn.Module):
         self.tail1 = nn.Conv2d(args.MODEL.HEAD_HIDDEN_DIM, args.MODEL.OUTPUT_DIM, 1)
         self.tail2 = nn.Conv2d(args.MODEL.HEAD_HIDDEN_DIM, args.MODEL.OUTPUT_DIM, 1)
 
-    def forward(self, x, complement):
+    def forward(self, x, complement, return_visuals=False):
         x = self.head(x)
         complement = self.head2(complement)
 
@@ -113,10 +113,29 @@ class CrossCMMT(nn.Module):
 
         # Directional correspondence:
         # target -> query; auxiliary -> key/value.
-        matched_aux = self.directional_match(x, complement)
+        #
+        # Keep a detached target state only when visualization is
+        # explicitly requested. Default training behavior is unchanged.
+        if return_visuals:
+            target_tokens_before_match = x.detach()
+
+            matched_aux, match_visuals = self.directional_match(
+                x,
+                complement,
+                return_visuals=True,
+            )
+        else:
+            matched_aux = self.directional_match(
+                x,
+                complement,
+                return_visuals=False,
+            )
 
         # M1 = Match only. No complementarity assessment yet.
         x = x + matched_aux
+
+        if return_visuals:
+            target_tokens_after_match = x.detach()
 
         c = int(x.shape[2] / (self.p1 * self.p1))
         H = int(h / self.p1)
@@ -132,6 +151,16 @@ class CrossCMMT(nn.Module):
         complement = complement.reshape(b, -1, c_h, c_w)
 
         complement = self.tail2(complement)
+
+        if return_visuals:
+            visuals = {
+                "attention": match_visuals["attention"],
+                "candidate_index": match_visuals["candidate_index"],
+                "matched_aux_tokens": match_visuals["matched_aux"],
+                "target_tokens_before_match": target_tokens_before_match,
+                "target_tokens_after_match": target_tokens_after_match,
+            }
+            return x, complement, visuals
 
         return x, complement
 
