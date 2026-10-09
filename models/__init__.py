@@ -5,6 +5,7 @@ from .cmmt_sr_multi_cross import build_model as SRMC
 from .cmmt_reconstruction_multi_cross import build_model as RMC
 from .cmmt_reconstruction_multi_cross_noearly import build_model as RMCNE
 from .cmmt_reconstruction_directional_match import build_model as RDM
+from .cmmt_reconstruction_match_assess import build_model as RMA
 from .cmmt_reconstruction_multi_early import build_model as RME
 from .cmmt_reconstruction_single import build_model as RS
 
@@ -18,6 +19,7 @@ model_factory = {
     'reconstruction_multi_cross': RMC,
     'reconstruction_multi_cross_noearly': RMCNE,
     'reconstruction_directional_match': RDM,
+    'reconstruction_match_assess': RMA,
     'reconstruction_multi_early': RME,
     'reconstruction_single': RS,
 
